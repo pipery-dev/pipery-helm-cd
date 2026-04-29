@@ -1,0 +1,15 @@
+name: basic-test
+description: "Test pipery-helm-cd action, skip advanced steps"
+source_path: test-project
+inputs:
+  skip_sast: true
+  skip_sca: true
+  skip_release: true
+  skip_versioning: true
+  skip_reintegration: true
+expect:
+  log_path: pipery.jsonl
+  success_values:
+    - true
+  required_fields:
+    - event
