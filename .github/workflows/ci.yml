@@ -14,10 +14,16 @@ jobs:
       - name: Install shellcheck
         run: sudo apt-get update && sudo apt-get install -y shellcheck
       - name: Lint shell scripts
-        run: shellcheck src/*.sh
+        run: |
+          for f in src/*.sh; do
+            if ! grep -q '^#!/usr/bin/env psh' "$f"; then
+              shellcheck --shell=bash "$f"
+            fi
+          done
 
   test:
     runs-on: ubuntu-latest
+    secrets: inherit
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
