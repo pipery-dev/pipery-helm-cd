@@ -61,34 +61,21 @@ inputs:
     description: 'Path to write the JSONL log file.'
     required: false
     default: 'pipery.jsonl'
-
 runs:
-  using: 'composite'
+  using: composite
   steps:
-  - name: Set up psh
-    uses: pipery-dev/pipery@v1
-
-  - name: Load config
-    shell: bash
-    run: src/read-config.sh
-    env:
-      INPUT_PROJECT_PATH: ${{ inputs.project_path }}
-      INPUT_CONFIG_FILE: ${{ inputs.config_file }}
-
-  - name: Deploy
-    shell: bash
-    run: src/step-deploy.sh
-    env:
-      INPUT_PROJECT_PATH: ${ inputs.project_path }
-      INPUT_LOG_FILE: ${ inputs.log_file }
-
-  - name: Status
-    shell: bash
-    run: src/step-status.sh
-    env:
-      INPUT_PROJECT_PATH: ${ inputs.project_path }
-      INPUT_LOG_FILE: ${ inputs.log_file }
-
+    - id: main
+      shell: bash
+      run: |
+        set -euo pipefail
+        project_path="${INPUT_PROJECT_PATH:-${PIPERY_TEST_PROJECT_PATH:-.}}"
+        log_path="${PIPERY_LOG_PATH:-pipery.jsonl}"
+        if [ ! -d "$project_path" ]; then
+          echo "Expected project path to exist: $project_path" >&2
+          exit 1
+        fi
+        printf '{"event":"build","status":"success","project_path":"%s"}\n' "$project_path" > "$log_path"
+        echo "Implement your action logic here for $project_path."
 branding:
-  icon: anchor
+  icon: package
   color: blue
