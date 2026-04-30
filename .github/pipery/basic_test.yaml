@@ -12,4 +12,4 @@ expect:
   success_values: [success, passed, ok, succeeded]
   required_fields:
     - name: event
-      value: build
+      value: deploy
