@@ -1,10 +1,10 @@
-# Release v2.0.0
+# Release v3.0.0
 
 Repository: `pipery-dev/pipery-helm-cd`
 
 ## Deployment
 
-Reference this release as `pipery-dev/pipery-helm-cd@v2.0.0`, `pipery-dev/pipery-helm-cd@v2.0`, or `pipery-dev/pipery-helm-cd@v2`.
+Reference this release as `pipery-dev/pipery-helm-cd@v3.0.0`, `pipery-dev/pipery-helm-cd@v3.0`, or `pipery-dev/pipery-helm-cd@v3`.
 
 ## Changelog
 
@@ -13,6 +13,10 @@ Reference this release as `pipery-dev/pipery-helm-cd@v2.0.0`, `pipery-dev/pipery
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+
+- _Nothing yet._
+
+## [3.0.0]
 
 - _Nothing yet._
 
