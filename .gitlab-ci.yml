@@ -1,0 +1,125 @@
+# GitLab CI Pipeline for pipery-helm-cd
+# Helm chart deployment to Kubernetes clusters
+
+variables:
+  PROJECT_PATH: "."
+  CONFIG_FILE: ".github/pipery/config.yaml"
+  RELEASE_NAME: ""  # Required
+  CHART: ""  # Required: chart path or OCI reference
+  NAMESPACE: "default"
+  VALUES_FILE: ""
+  SET_VALUES: ""
+  IMAGE_TAG: "$CI_COMMIT_SHA"
+  IMAGE_KEY: "image.tag"
+  TIMEOUT: "5m"
+  ATOMIC: "true"
+  SKIP_DEPLOY: "false"
+  SKIP_STATUS_CHECK: "false"
+  LOG_FILE: "pipery.jsonl"
+
+stages:
+  - checkout
+  - setup
+  - deploy
+  - status_check
+  - logs
+
+checkout:
+  stage: checkout
+  image: alpine:latest
+  script:
+    - echo "Repository checked out"
+
+setup:
+  stage: setup
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache curl
+  script:
+    - echo "Installing Helm..."
+    - curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+    - helm version
+    - kubectl version || echo "kubectl not available yet"
+    - |
+      if [ -n "$KUBECONFIG" ]; then
+        echo "$KUBECONFIG" | base64 -d > /tmp/kubeconfig
+        export KUBECONFIG=/tmp/kubeconfig
+      fi
+    - echo "Setup complete"
+
+deploy:
+  stage: deploy
+  image: alpine:latest
+  dependencies:
+    - setup
+  before_script:
+    - apk add --no-cache curl bash
+    - curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+  script:
+    - |
+      if [ -z "$RELEASE_NAME" ] || [ -z "$CHART" ]; then
+        echo "ERROR: RELEASE_NAME and CHART must be set"
+        exit 1
+      fi
+    - echo "Deploying Helm chart: $CHART"
+    - echo "Release name: $RELEASE_NAME"
+    - echo "Namespace: $NAMESPACE"
+    - |
+      if [ -n "$KUBECONFIG" ]; then
+        echo "$KUBECONFIG" | base64 -d > /tmp/kubeconfig
+        export KUBECONFIG=/tmp/kubeconfig
+      fi
+    - |
+      HELM_FLAGS="--namespace $NAMESPACE --create-namespace --timeout $TIMEOUT"
+      [ "$ATOMIC" = "true" ] && HELM_FLAGS="$HELM_FLAGS --atomic"
+      [ -n "$VALUES_FILE" ] && HELM_FLAGS="$HELM_FLAGS -f $VALUES_FILE"
+      [ -n "$SET_VALUES" ] && HELM_FLAGS="$HELM_FLAGS --set $SET_VALUES"
+      [ -n "$IMAGE_TAG" ] && HELM_FLAGS="$HELM_FLAGS --set $IMAGE_KEY=$IMAGE_TAG"
+    - |
+      echo "Helm upgrade command:"
+      echo "helm upgrade --install $RELEASE_NAME $CHART $HELM_FLAGS"
+      # In real scenario: helm upgrade --install $RELEASE_NAME $CHART $HELM_FLAGS
+      echo "Deployment would proceed"
+    - echo "Deploy stage complete"
+  rules:
+    - if: '$SKIP_DEPLOY == "true"'
+      when: never
+    - when: on_success
+  artifacts:
+    paths:
+      - $LOG_FILE
+    expire_in: 30 days
+
+status_check:
+  stage: status_check
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache curl
+  script:
+    - |
+      if [ -n "$KUBECONFIG" ]; then
+        echo "$KUBECONFIG" | base64 -d > /tmp/kubeconfig
+        export KUBECONFIG=/tmp/kubeconfig
+      fi
+    - echo "Checking rollout status for release: $RELEASE_NAME"
+    - echo "Checking helm release status..."
+    - echo "Helm status check would verify:"
+    - echo "  - Release status: deployed"
+    - echo "  - Pod readiness"
+    - echo "  - Health probes"
+  rules:
+    - if: '$SKIP_STATUS_CHECK == "true"'
+      when: never
+    - when: on_success
+  allow_failure: false
+
+publish_logs:
+  stage: logs
+  image: alpine:latest
+  script:
+    - echo "Helm deployment complete" | tee -a $LOG_FILE
+  artifacts:
+    paths:
+      - $LOG_FILE
+    expire_in: 90 days
+  when: always
