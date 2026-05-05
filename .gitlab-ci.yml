@@ -3,7 +3,7 @@
 
 variables:
   PROJECT_PATH: "."
-  CONFIG_FILE: ".github/pipery/config.yaml"
+  CONFIG_FILE: ".pipery/config.yaml"
   RELEASE_NAME: ""  # Required
   CHART: ""  # Required: chart path or OCI reference
   NAMESPACE: "default"
