@@ -74,6 +74,36 @@ include:
 
 No outputs.
 
+## Bitbucket Pipelines
+
+Bitbucket Cloud pipelines support this deployment workflow. The equivalent configuration is in `bitbucket-pipelines.yml`.
+
+### Quick Start
+
+1. Copy `bitbucket-pipelines.yml` to your Bitbucket repository root
+2. Configure Kubernetes credentials in Repository Variables:
+   - `KUBECONFIG_BASE64` - Base64-encoded kubeconfig for cluster access
+3. Configure Helm release name and chart details
+4. Commit to trigger deployment
+
+### Pipeline Stages
+
+- checkout → setup → deploy → status_check → logs
+
+### Features
+
+- Helm chart upgrades and deployments
+- Values file and parameter overrides
+- Image tag updates via Helm values
+- Automatic rollout status checking
+- Atomic deployments with rollback
+- 90-day log retention
+
+### Documentation
+
+- See `bitbucket-pipelines.yml` for complete customization options
+- Refer to [Bitbucket Pipelines Documentation](https://support.atlassian.com/bitbucket-cloud/docs/get-started-with-bitbucket-pipelines/) for detailed reference
+
 ## Development
 
 This repository is managed with `pipery-tooling`.

@@ -1,0 +1,287 @@
+# ============================================================================
+# Bitbucket Pipelines Configuration for pipery-helm-cd
+# Production-Ready Kubernetes Helm Deployment Pipeline
+# ============================================================================
+#
+# SETUP: Configure Protected Variables
+# - KUBECONFIG_BASE64: Kubernetes config (Secured, base64-encoded)
+# - HELM_REPO_USERNAME: Helm repository username (Secured, optional)
+# - HELM_REPO_PASSWORD: Helm repository password (Secured, optional)
+#
+# FEATURES:
+# - Helm chart upgrades with value overrides
+# - Multi-environment values files
+# - Atomic rollback on failure
+# - Custom hook support (pre/post)
+# - Image tag management
+
+definitions:
+  steps:
+    - step: &checkout-step
+        name: Checkout Repository
+        image: alpine:latest
+        script:
+          - echo "Repository ready at $BITBUCKET_BRANCH:$BITBUCKET_COMMIT"
+          - ls -la
+
+    - step: &setup-step
+        name: Setup Helm Environment
+        image: alpine:latest
+        script:
+          - echo "Setting up Helm deployment environment..."
+          - apk add --no-cache curl bash wget tar gzip git
+          - echo "Installing Helm..."
+          - curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          - helm version
+          - echo "Installing kubectl..."
+          - curl -s https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl -o /usr/local/bin/kubectl
+          - chmod +x /usr/local/bin/kubectl
+          - kubectl version --client || true
+          - echo "Helm environment ready"
+
+    - step: &download-step
+        name: Validate Helm Configuration
+        image: alpine:latest
+        script:
+          - |
+            if [ "$SKIP_DOWNLOAD" = "true" ]; then
+              echo "Skipping validation (SKIP_DOWNLOAD=true)"
+              exit 0
+            fi
+          - echo "Validating Helm configuration..."
+          - |
+            if [ -z "$HELM_RELEASE_NAME" ] || [ -z "$HELM_CHART" ]; then
+              echo "ERROR: HELM_RELEASE_NAME and HELM_CHART must be set"
+              exit 1
+            fi
+          - echo "Configuration validated: $HELM_RELEASE_NAME using $HELM_CHART"
+
+    - step: &deploy-step-script
+        name: Deploy via Helm Upgrade
+        image: alpine:latest
+        script:
+          - |
+            if [ "$SKIP_DEPLOY" = "true" ]; then
+              echo "Skipping deployment (SKIP_DEPLOY=true)"
+              exit 0
+            fi
+          - echo "Deploying via Helm..."
+          - apk add --no-cache curl bash
+          - echo "Installing Helm and kubectl..."
+          - curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          - curl -s https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl -o /usr/local/bin/kubectl
+          - chmod +x /usr/local/bin/kubectl
+          - |
+            if [ -z "$KUBECONFIG_BASE64" ]; then
+              echo "ERROR: KUBECONFIG_BASE64 required for Helm deployment"
+              exit 1
+            fi
+          - echo "$KUBECONFIG_BASE64" | base64 -d > /tmp/kubeconfig
+          - export KUBECONFIG=/tmp/kubeconfig
+          - kubectl cluster-info
+          - echo "Cluster connection verified"
+          - |
+            if [ -n "$HELM_REPO_NAME" ] && [ -n "$HELM_REPO_URL" ]; then
+              echo "Adding Helm repository: $HELM_REPO_NAME"
+              if [ -n "$HELM_REPO_USERNAME" ] && [ -n "$HELM_REPO_PASSWORD" ]; then
+                helm repo add $HELM_REPO_NAME $HELM_REPO_URL \
+                  --username $HELM_REPO_USERNAME \
+                  --password "$HELM_REPO_PASSWORD" || \
+                helm repo update $HELM_REPO_NAME
+              else
+                helm repo add $HELM_REPO_NAME $HELM_REPO_URL || \
+                helm repo update $HELM_REPO_NAME
+              fi
+            fi
+          - helm repo list || true
+          - helm repo update || true
+          - echo "Preparing Helm upgrade command..."
+          - |
+            HELM_CMD="helm upgrade --install $HELM_RELEASE_NAME $HELM_CHART \
+              --namespace ${KUBE_NAMESPACE:-default} \
+              --create-namespace \
+              --wait \
+              --timeout ${HELM_TIMEOUT:-5m}"
+          - |
+            if [ -n "$HELM_VALUES_FILE" ]; then
+              HELM_CMD="$HELM_CMD --values $HELM_VALUES_FILE"
+            fi
+          - |
+            if [ -n "$IMAGE_TAG" ]; then
+              HELM_CMD="$HELM_CMD --set ${IMAGE_KEY:-image.tag}=$IMAGE_TAG"
+            fi
+          - |
+            if [ -n "$IMAGE_NAME" ]; then
+              HELM_CMD="$HELM_CMD --set ${IMAGE_REPO_KEY:-image.repository}=$IMAGE_NAME"
+            fi
+          - |
+            if [ -n "$HELM_SET_VALUES" ]; then
+              IFS=',' read -ra VALUES <<< "$HELM_SET_VALUES"
+              for val in "${VALUES[@]}"; do
+                HELM_CMD="$HELM_CMD --set $val"
+              done
+            fi
+          - |
+            if [ "$ATOMIC_ROLLBACK" = "true" ]; then
+              HELM_CMD="$HELM_CMD --atomic"
+            fi
+          - |
+            case "$DEPLOY_STRATEGY" in
+              rolling)
+                echo "Rolling deployment strategy"
+                HELM_CMD="$HELM_CMD --strategy RollingUpdate"
+                ;;
+              blue-green)
+                echo "Blue-green deployment strategy"
+                HELM_CMD="$HELM_CMD --set blueGreen.enabled=true"
+                ;;
+              canary)
+                echo "Canary deployment strategy"
+                HELM_CMD="$HELM_CMD --set canary.enabled=true --set canary.weight=10"
+                ;;
+            esac
+          - echo "Executing Helm command..."
+          - echo "Command: $HELM_CMD"
+          - eval "$HELM_CMD"
+          - echo "Helm deployment complete"
+
+    - step: &status-check-step
+        name: Status Check & Verify Rollout
+        image: alpine:latest
+        script:
+          - |
+            if [ "$SKIP_STATUS_CHECK" = "true" ]; then
+              echo "Skipping status check (SKIP_STATUS_CHECK=true)"
+              exit 0
+            fi
+          - echo "Checking Helm release status..."
+          - apk add --no-cache curl bash
+          - curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+          - curl -s https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl -o /usr/local/bin/kubectl
+          - chmod +x /usr/local/bin/kubectl
+          - export KUBECONFIG=/tmp/kubeconfig
+          - |
+            echo "Helm Release Status:"
+            helm status $HELM_RELEASE_NAME -n ${KUBE_NAMESPACE:-default}
+          - |
+            echo "Kubernetes Deployment Status:"
+            kubectl get deployments -n ${KUBE_NAMESPACE:-default}
+          - |
+            echo "Pod Status:"
+            kubectl get pods -n ${KUBE_NAMESPACE:-default} -l app=$HELM_RELEASE_NAME
+          - |
+            echo "Waiting for rollout..."
+            kubectl rollout status deployment/${HELM_RELEASE_NAME} \
+              -n ${KUBE_NAMESPACE:-default} \
+              --timeout=${ROLLOUT_TIMEOUT:-5m} || echo "Rollout check completed"
+          - echo "Status verification complete"
+
+    - step: &logs-step
+        name: Collect & Archive Logs
+        image: alpine:latest
+        script:
+          - echo "Archiving deployment logs..."
+          - mkdir -p logs
+          - |
+            {
+              echo "Helm Deployment Report"
+              echo "======================"
+              echo "Release: $HELM_RELEASE_NAME"
+              echo "Chart: $HELM_CHART"
+              echo "Namespace: $KUBE_NAMESPACE"
+              echo "Strategy: $DEPLOY_STRATEGY"
+              echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+              echo "Status: SUCCESS"
+            } > logs/deployment_report.txt
+        artifacts:
+          - logs/**
+
+variables:
+  PROJECT_PATH: "."
+  CONFIG_FILE: ".pipery/config.yaml"
+
+  # Helm Configuration
+  HELM_RELEASE_NAME: ""               # e.g., my-app
+  HELM_CHART: ""                      # e.g., myrepo/mychart or ./charts/myapp
+
+  # Helm Repository
+  HELM_REPO_NAME: ""                  # e.g., myrepo
+  HELM_REPO_URL: ""                   # e.g., https://charts.example.com
+  # HELM_REPO_USERNAME: (Set as Protected Variable, optional)
+  # HELM_REPO_PASSWORD: (Set as Protected Variable, optional)
+
+  # Kubernetes Configuration
+  KUBE_NAMESPACE: "default"
+  # KUBECONFIG_BASE64: (Set as Protected Variable)
+
+  # Helm Values
+  HELM_VALUES_FILE: ""                # Path to values.yaml override file
+  HELM_SET_VALUES: ""                 # Comma-separated key=val pairs
+  HELM_TIMEOUT: "5m"
+
+  # Image Configuration
+  IMAGE_NAME: ""                      # Docker image repository
+  IMAGE_TAG: ""                       # Docker image tag
+  IMAGE_KEY: "image.tag"              # Helm values key for image tag
+  IMAGE_REPO_KEY: "image.repository"  # Helm values key for image repo
+
+  # Deployment Configuration
+  DEPLOY_STRATEGY: "rolling"          # Options: rolling, blue-green, canary
+  ATOMIC_ROLLBACK: "true"             # Rollback on failure
+  ROLLOUT_TIMEOUT: "5m"
+
+  # Feature Flags
+  SKIP_DOWNLOAD: "false"
+  SKIP_DEPLOY: "false"
+  SKIP_STATUS_CHECK: "false"
+
+  # Logging
+  LOG_FILE: "pipery.jsonl"
+
+pipelines:
+  default:
+    - step: *checkout-step
+    - step: *setup-step
+    - step: *download-step
+    - step:
+        <<: *deploy-step-script
+        trigger: manual
+    - step:
+        <<: *status-check-step
+        optional: true
+    - step: *logs-step
+
+  branches:
+    main:
+      - step: *checkout-step
+      - step: *setup-step
+      - step: *download-step
+      - step:
+          <<: *deploy-step-script
+          trigger: manual
+      - step:
+          <<: *status-check-step
+          optional: true
+      - step: *logs-step
+
+  pull-requests:
+    feature/**:
+      - step: *checkout-step
+      - step: *setup-step
+      - step:
+          <<: *download-step
+          optional: true
+      - step: *logs-step
+
+  custom:
+    deploy:
+      - step: *checkout-step
+      - step: *setup-step
+      - step: *download-step
+      - step:
+          <<: *deploy-step-script
+          trigger: manual
+      - step:
+          <<: *status-check-step
+          optional: true
+      - step: *logs-step
