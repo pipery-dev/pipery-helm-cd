@@ -205,7 +205,7 @@ pipelines:
           <<: *status-check-step
           optional: true
       - step: *logs-step
-    - step: *dashboard-link
+      - step: *dashboard-link
 
   pull-requests:
     feature/**:
@@ -215,7 +215,7 @@ pipelines:
           <<: *download-step
           optional: true
       - step: *logs-step
-    - step: *dashboard-link
+      - step: *dashboard-link
 
   custom:
     deploy:
