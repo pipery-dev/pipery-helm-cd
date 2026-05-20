@@ -64,18 +64,27 @@ inputs:
 runs:
   using: composite
   steps:
-    - id: main
+    - name: Run Pipery Helm CD
       shell: bash
+      env:
+        INPUT_PROJECT_PATH: ${{ inputs.project_path }}
+        INPUT_CONFIG_FILE: ${{ inputs.config_file }}
+        INPUT_RELEASE_NAME: ${{ inputs.release_name }}
+        INPUT_CHART: ${{ inputs.chart }}
+        INPUT_NAMESPACE: ${{ inputs.namespace }}
+        INPUT_VALUES_FILE: ${{ inputs.values_file }}
+        INPUT_SET_VALUES: ${{ inputs.set_values }}
+        INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
+        INPUT_IMAGE_KEY: ${{ inputs.image_key }}
+        INPUT_KUBECONFIG: ${{ inputs.kubeconfig }}
+        INPUT_TIMEOUT: ${{ inputs.timeout }}
+        INPUT_ATOMIC: ${{ inputs.atomic }}
+        INPUT_SKIP_DEPLOY: ${{ inputs.skip_deploy }}
+        INPUT_SKIP_STATUS_CHECK: ${{ inputs.skip_status_check }}
+        INPUT_LOG_FILE: ${{ inputs.log_file }}
       run: |
         set -euo pipefail
-        project_path="${INPUT_PROJECT_PATH:-${PIPERY_TEST_PROJECT_PATH:-.}}"
-        log_path="${PIPERY_LOG_PATH:-pipery.jsonl}"
-        if [ ! -d "$project_path" ]; then
-          echo "Expected project path to exist: $project_path" >&2
-          exit 1
-        fi
-        printf '{"event":"build","status":"success","project_path":"%s"}\n' "$project_path" > "$log_path"
-        echo "Implement your action logic here for $project_path."
+        bash "${GITHUB_ACTION_PATH}/src/main.sh"
 branding:
   icon: package
   color: blue

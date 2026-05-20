@@ -1,0 +1,6 @@
+apiVersion: v2
+name: pipery-helm-cd-test
+description: Minimal chart used by pipery-helm-cd action tests.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

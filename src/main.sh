@@ -16,23 +16,23 @@ fi
 mkdir -p "$(dirname "$LOG")"
 
 # Step: read config
-"$SCRIPT_DIR/read-config.sh"
+bash "$SCRIPT_DIR/read-config.sh"
 
 # Step: deploy
 if [ "${INPUT_SKIP_DEPLOY:-false}" != "true" ]; then
-  "$SCRIPT_DIR/step-deploy.sh"
+  bash "$SCRIPT_DIR/step-deploy.sh"
 else
   echo "[pipery-helm-cd] Skipping deploy step."
 fi
 
 # Step: status check
 if [ "${INPUT_SKIP_STATUS_CHECK:-false}" != "true" ]; then
-  "$SCRIPT_DIR/step-status.sh"
+  bash "$SCRIPT_DIR/step-status.sh"
 else
   echo "[pipery-helm-cd] Skipping status check step."
 fi
 
 # Final success log entry (always written)
-printf '{"event":"deploy","status":"success","target":"helm","mode":"cd"}\n' >> "${INPUT_LOG_FILE:-pipery.jsonl}"
+printf '{"event":"deploy","status":"success","target":"helm","mode":"cd"}\n' >> "${LOG}"
 
 echo "[pipery-helm-cd] CD pipeline completed for: ${PROJECT_PATH}"
