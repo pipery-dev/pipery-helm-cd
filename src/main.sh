@@ -7,10 +7,20 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_PATH="${INPUT_PROJECT_PATH:-${PIPERY_TEST_PROJECT_PATH:-.}}"
 LOG="${INPUT_LOG_FILE:-${PIPERY_LOG_PATH:-pipery.jsonl}}"
+export INPUT_LOG_FILE="$LOG"
 
 if [ ! -d "$PROJECT_PATH" ]; then
   echo "[pipery-helm-cd] ERROR: project path does not exist: $PROJECT_PATH" >&2
   exit 1
+fi
+PROJECT_PATH="$(cd "$PROJECT_PATH" && pwd)"
+export INPUT_PROJECT_PATH="$PROJECT_PATH"
+
+if [ -d "${PROJECT_PATH}/bin" ]; then
+  export PATH="${PROJECT_PATH}/bin:${PATH}"
+fi
+if [ -d "${PROJECT_PATH}/mock-bin" ]; then
+  export PATH="${PROJECT_PATH}/mock-bin:${PATH}"
 fi
 
 mkdir -p "$(dirname "$LOG")"

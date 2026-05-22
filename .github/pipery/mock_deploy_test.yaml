@@ -1,0 +1,26 @@
+name: mocked-deploy
+description: Validate Helm CD deploy and status steps with a local Helm mock.
+source_path: test-project
+inputs:
+  project_path: test-project
+  release_name: pipery-fixture
+  chart: .
+  namespace: pipery-fixture
+  values_file: values.yaml
+  set_values: replicaCount=2,service.port=8080
+  image_tag: scenario
+  image_key: image.tag
+  timeout: 2m
+  atomic: "true"
+  skip_deploy: "false"
+  skip_status_check: "false"
+expect:
+  log_path: pipery.jsonl
+  success_values: [success, passed, ok, succeeded]
+  required_fields:
+    - name: event
+      value: helm_deploy
+    - name: event
+      value: helm_status
+    - name: event
+      value: deploy

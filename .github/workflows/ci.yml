@@ -23,5 +23,7 @@ jobs:
           python-version: "3.11"
       - name: Install pipery-tooling
         run: pip install "git+https://github.com/pipery-dev/pipery-tooling.git"
+      - name: Use fixture command mocks
+        run: echo "$PWD/test-project/mock-bin" >> "$GITHUB_PATH"
       - name: Test action
         run: pipery-actions test --repo .
