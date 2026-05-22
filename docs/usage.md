@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pipery-dev/pipery-helm-cd@v3
+      - uses: pipery-dev/pipery-helm-cd@v1
         with:
           project_path: .
           config_file: .pipery/config.yaml
