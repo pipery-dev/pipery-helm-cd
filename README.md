@@ -7,7 +7,7 @@ CD pipeline for Helm: update chart values → helm upgrade → wait for Kubernet
 - Owner: `pipery-dev`
 - Repository: `pipery-helm-cd`
 - Marketplace category: `continuous-integration`
-- Current version: `1.0.2`
+- Current version: `1.1.0`
 
 ## Usage
 
